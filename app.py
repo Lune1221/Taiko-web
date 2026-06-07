@@ -40,7 +40,17 @@ def take_config(name, required=False):
 
 app = Flask(__name__)
 
+import ssl # 安全検証をスキップするために必要
+
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
+
+# Renderの古いPython環境でもMongoDB Atlasと正しく握手（SSL通信）できるようにする設定
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE
+
+client = MongoClient(mongo_host, ssl_context=context)
+
 
 # 接続文字列にすでにオプションが含まれている場合を考慮し、安全にオプションを追加して初期化
 if "mongodb+srv://" in mongo_host or "tls=" in mongo_host:
