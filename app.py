@@ -31,19 +31,18 @@ app.cache = Cache(app, config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_HOST': redis_
 
 @app.route('/')
 def route_index():
-    # index.htmlに渡す初期データ
+    # JavaScriptの初期設定に必要な version を渡す
     version_data = {'commit_short': 'stable'}
     return render_template('index.html', version=version_data)
 
 @app.route('/api/config')
 def route_api_config():
-    # JavaScriptのloader.jsが期待する構造（versionオブジェクトの中にcommit_shortを含む）を定義
+    # ★重要：フロントエンドの loader.js が version.commit_short を直接参照しているため、
+    # その構造をJSONで明示的に返します
     return jsonify({
         'basedir': '/',
         'songs_baseurl': os.environ.get("SONGS_BASEURL", "/"),
-        'version': {
-            'commit_short': 'stable'
-        }
+        'version': {'commit_short': 'stable'}
     })
 
 @app.route('/src/views/<path:filename>')
