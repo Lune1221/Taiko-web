@@ -32,13 +32,14 @@ app.cache = Cache(app, config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_HOST': redis_
 
 @app.route('/')
 def route_index():
-    # ブラウザの loader.js が期待する version 情報をテンプレートに渡す
+    # index.htmlに渡す初期データ
     version_data = {'commit_short': 'stable'}
     return render_template('index.html', version=version_data)
 
 @app.route('/api/config')
 def route_api_config():
-    # フロントエンドが期待する構造（version を含む）で JSON を返却
+    # JavaScriptのloader.jsが 'version.commit_short' を探しているため、
+    # 構造を維持しつつ安定版としてデータを返却します
     return jsonify({
         'basedir': '/',
         'songs_baseurl': os.environ.get("SONGS_BASEURL", "/"),
@@ -47,7 +48,7 @@ def route_api_config():
 
 @app.route('/src/views/<path:filename>')
 def serve_views(filename):
-    # GitHubのディレクトリ構造 public/views/ に合わせて配信
+    # GitHubのフォルダ構造 public/views/ 内のファイルを配信
     return send_from_directory('public/views', filename)
 
 # --- 4. サーバー起動 ---
