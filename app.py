@@ -40,7 +40,14 @@ def take_config(name, required=False):
 
 app = Flask(__name__)
 
-client = MongoClient(host=os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host'])
+mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
+
+# 接続文字列にすでにオプションが含まれている場合を考慮し、安全にオプションを追加して初期化
+if "mongodb+srv://" in mongo_host or "tls=" in mongo_host:
+    client = MongoClient(mongo_host)
+else:
+    client = MongoClient(mongo_host, tls=True, tlsAllowInvalidCertificates=True)
+
 basedir = take_config('BASEDIR') or '/'
 
 app.secret_key = take_config('SECRET_KEY') or 'change-me'
