@@ -43,14 +43,16 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# Python 3.14のSSL検証設定
-ssl._create_default_https_context = ssl._create_unverified_context
+# Python 3.14の厳しすぎるSSL/TLSの暗号化制限を緩和し、Atlasと互換性のある方式（DEFAULT）を強制します
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+ssl_context.set_ciphers('DEFAULT')  # 互換性の高い暗号化スイートを再適用
 
-# 接続に必要なTLS等のすべてのパラメータは環境変数（接続URL）に自動で含まれているため、
-# PyMongoの自動解析に任せて、タイムアウト制限（5秒）だけをシンプルに適用します。
 client = MongoClient(
     mongo_host,
-    serverSelectionTimeoutMS=5000       # 繋がらない時に無駄に30秒待たせない設定
+    serverSelectionTimeoutMS=5000,      # 繋がらない時に無駄に30秒待たせない設定
+    ssl_context=ssl_context            # 作成した互換性重視のコンテキストを渡す
 )
 
 basedir = take_config('BASEDIR') or '/'
