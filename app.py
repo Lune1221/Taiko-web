@@ -13,13 +13,10 @@ import requests
 import schema
 import os
 import time
-import ssl  # SSL操作のために追加
 
 # -- カスタム --
 from datetime import datetime
-
 from pymongo import DESCENDING
-
 # ----
 
 from functools import wraps
@@ -43,16 +40,10 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# Python 3.14の厳しすぎるSSL/TLSの暗号化制限を緩和し、Atlasと互換性のある方式（DEFAULT）を強制します
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
-ssl_context.set_ciphers('DEFAULT')  # 互換性の高い暗号化スイートを再適用
-
+# 接続時の余計なSSLコンテキスト指定を削除し、PyMongoの標準的な動作に任せます
 client = MongoClient(
     mongo_host,
-    serverSelectionTimeoutMS=5000,      # 繋がらない時に無駄に30秒待たせない設定
-    tlsContext=ssl_context             # PyMongoの仕様に合わせて tlsContext に修正
+    serverSelectionTimeoutMS=5000  # 繋がらない時に無駄に30秒待たせない設定
 )
 
 basedir = take_config('BASEDIR') or '/'
@@ -72,7 +63,6 @@ app.config['SESSION_REDIS'] = Redis(
 app.cache = Cache(app, config=redis_config)
 sess = Session()
 sess.init_app(app)
-#csrf = CSRFProtect(app)
 
 db = client[take_config('MONGO', required=True)['database']]
 db.users.create_index('username', unique=True)
