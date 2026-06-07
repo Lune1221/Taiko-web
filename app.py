@@ -32,7 +32,8 @@ def take_config(name, required=False):
         raise ValueError('Required option is not defined in the config.py file: {}'.format(name))
     return None
 
-app = Flask(__name__)
+# ★修正点: static_folderをpublicに指定し、ルートパスから解決するように設定
+app = Flask(__name__, static_folder='public', static_url_path='/')
 
 # 接続先の設定を環境変数から取得
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
@@ -48,9 +49,6 @@ redis_host = os.environ.get("TAIKO_WEB_REDIS_HOST") or redis_config.get('CACHE_R
 redis_port = os.environ.get("TAIKO_WEB_REDIS_PORT") or redis_config.get("CACHE_REDIS_PORT")
 redis_pass = os.environ.get("TAIKO_WEB_REDIS_PASSWORD") or redis_config.get("CACHE_REDIS_PASSWORD")
 redis_db = os.environ.get("TAIKO_WEB_REDIS_DB") or redis_config.get("CACHE_REDIS_DB") or 0
-
-# デバッグ用ログ（RenderのLogsで確認）
-print(f"DEBUG: Connecting to Redis at {redis_host}:{redis_port}. Password length: {len(str(redis_pass))}")
 
 # RedisへのTLS/SSL接続設定
 app.config['SESSION_REDIS'] = Redis(
@@ -71,9 +69,10 @@ sess.init_app(app)
 db = client[take_config('MONGO', required=True)['database']]
 
 # --- (以下、既存の関数やルート定義をそのまま貼り付けてください) ---
-# ...
-# (ログイン処理、APIルート、データベース操作関数など)
-# ...
+# ※すでにお持ちのapp.pyの残りのコードをここ以降に貼り付けて完了です。
+# ただし、すでに存在する send_from_directory のルート定義（send_src, send_assets 等）と
+# 今回の static_url_path 設定が競合する可能性があるため、もしエラーが出たら
+# 既存の app.route で定義されている静的ファイル用の関数を削除してみてください。
 
 if __name__ == '__main__':
     import argparse
