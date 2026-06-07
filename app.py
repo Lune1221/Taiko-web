@@ -43,14 +43,13 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# Python 3.14の厳格なSSL検証をシステム全体で完全にバイパス（環境依存のエラーを回避）
+# Python 3.14のSSL検証設定
 ssl._create_default_https_context = ssl._create_unverified_context
 
-# 接続文字列の内容に関わらず、検証無視設定と5秒タイムアウトを適応
+# 接続に必要なTLS等のすべてのパラメータは環境変数（接続URL）に自動で含まれているため、
+# PyMongoの自動解析に任せて、タイムアウト制限（5秒）だけをシンプルに適用します。
 client = MongoClient(
     mongo_host,
-    tls=True,
-    tlsAllowInvalidCertificates=True,  # 証明書エラーを無視
     serverSelectionTimeoutMS=5000       # 繋がらない時に無駄に30秒待たせない設定
 )
 
