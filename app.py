@@ -13,7 +13,7 @@ import requests
 import schema
 import os
 import time
-import ssl  # SSLコンテキスト操作のために追加
+import ssl  # SSL操作のために追加
 
 # -- カスタム --
 from datetime import datetime
@@ -43,17 +43,14 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# Python 3.14の厳格なSSL検証を完全にバイパスするコンテキストを作成
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
+# Python 3.14の厳格なSSL検証をシステム全体で完全にバイパス（環境依存のエラーを回避）
+ssl._create_default_https_context = ssl._create_unverified_context
 
-# 接続文字列の内容に関わらず、強制的に最強のSSL無視設定と5秒タイムアウトを適応
+# 接続文字列の内容に関わらず、検証無視設定と5秒タイムアウトを適応
 client = MongoClient(
     mongo_host,
     tls=True,
-    tlsAllowInvalidCertificates=True,
-    tlsContext=ssl_context,            # PyMongo v4以降の正しい引数名に修正
+    tlsAllowInvalidCertificates=True,  # 証明書エラーを無視
     serverSelectionTimeoutMS=5000       # 繋がらない時に無駄に30秒待たせない設定
 )
 
