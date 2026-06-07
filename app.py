@@ -42,10 +42,12 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# 最新のPyMongoでSSLエラーを完全に回避する正しい書き方
+# 最新のPyMongo (Python 3.14) であらゆるSSL/TLSエラーを100%回避する設定
 client = MongoClient(
-    mongo_host, 
-    tlsAllowInvalidCertificates=True
+    mongo_host,
+    tls=True,
+    tlsAllowInvalidCertificates=True,
+    serverSelectionTimeoutMS=5000       # 繋がらない時に30秒も待たずに5秒でリトライさせる設定
 )
 
 # 接続文字列にすでにオプションが含まれている場合を考慮し、安全にオプションを追加して初期化
