@@ -40,15 +40,12 @@ def take_config(name, required=False):
 
 app = Flask(__name__)
 
-import ssl # 安全検証をスキップするために必要
-
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# 古いバージョンのpymongoでも動く、SSLエラー強制回避設定
+# 最新のPyMongoでSSLエラーを完全に回避する正しい書き方
 client = MongoClient(
     mongo_host, 
-    ssl=True, 
-    ssl_cert_reqs=ssl.CERT_NONE
+    tlsAllowInvalidCertificates=True
 )
 
 # 接続文字列にすでにオプションが含まれている場合を考慮し、安全にオプションを追加して初期化
