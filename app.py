@@ -7,7 +7,6 @@ from flask_session import Session
 from redis import Redis
 
 # --- 1. アプリ初期化 ---
-# public フォルダを静的ファイルとして配信設定
 app = Flask(__name__, static_folder='public', static_url_path='/')
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-to-something-secure")
 
@@ -38,12 +37,13 @@ def route_index():
 
 @app.route('/api/config')
 def route_api_config():
-    # JavaScriptのloader.jsが 'version.commit_short' を探しているため、
-    # 構造を維持しつつ安定版としてデータを返却します
+    # JavaScriptのloader.jsが期待する構造（versionオブジェクトの中にcommit_shortを含む）を定義
     return jsonify({
         'basedir': '/',
         'songs_baseurl': os.environ.get("SONGS_BASEURL", "/"),
-        'version': {'commit_short': 'stable'}
+        'version': {
+            'commit_short': 'stable'
+        }
     })
 
 @app.route('/src/views/<path:filename>')
