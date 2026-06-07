@@ -52,7 +52,7 @@ ssl_context.set_ciphers('DEFAULT')  # 互換性の高い暗号化スイートを
 client = MongoClient(
     mongo_host,
     serverSelectionTimeoutMS=5000,      # 繋がらない時に無駄に30秒待たせない設定
-    ssl_context=ssl_context            # 作成した互換性重視のコンテキストを渡す
+    tlsContext=ssl_context             # PyMongoの仕様に合わせて tlsContext に修正
 )
 
 basedir = take_config('BASEDIR') or '/'
