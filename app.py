@@ -53,7 +53,7 @@ client = MongoClient(
     mongo_host,
     tls=True,
     tlsAllowInvalidCertificates=True,
-    ssl_context=ssl_context,           # これがPython 3.14のSSLエラーをねじ伏せる切り札
+    tlsContext=ssl_context,            # PyMongo v4以降の正しい引数名に修正
     serverSelectionTimeoutMS=5000       # 繋がらない時に無駄に30秒待たせない設定
 )
 
