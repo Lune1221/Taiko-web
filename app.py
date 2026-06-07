@@ -40,10 +40,10 @@ app = Flask(__name__)
 
 mongo_host = os.environ.get("TAIKO_WEB_MONGO_HOST") or take_config('MONGO', required=True)['host']
 
-# 接続時の余計なSSLコンテキスト指定を削除し、PyMongoの標準的な動作に任せます
+# MongoDB接続設定（SSLコンテキスト引数は不要です）
 client = MongoClient(
     mongo_host,
-    serverSelectionTimeoutMS=5000  # 繋がらない時に無駄に30秒待たせない設定
+    serverSelectionTimeoutMS=5000
 )
 
 basedir = take_config('BASEDIR') or '/'
@@ -53,13 +53,19 @@ app.config['SESSION_TYPE'] = 'redis'
 redis_config = take_config('REDIS', required=True)
 redis_config['CACHE_REDIS_HOST'] = os.environ.get("TAIKO_WEB_REDIS_HOST") or redis_config['CACHE_REDIS_HOST']
 redis_config["CACHE_REDIS_PORT"] = os.environ.get("TAIKO_WEB_REDIS_PORT") or redis_config["CACHE_REDIS_PORT"]
-print(redis_config)
+redis_config["CACHE_REDIS_PASSWORD"] = os.environ.get("TAIKO_WEB_REDIS_PASSWORD") or redis_config.get("CACHE_REDIS_PASSWORD")
+redis_config["CACHE_REDIS_DB"] = os.environ.get("TAIKO_WEB_REDIS_DB") or redis_config.get("CACHE_REDIS_DB") or 0
+
+# RedisへのTLS接続設定
 app.config['SESSION_REDIS'] = Redis(
     host=redis_config['CACHE_REDIS_HOST'],
-    port=redis_config['CACHE_REDIS_PORT'],
+    port=int(redis_config['CACHE_REDIS_PORT']),
     password=redis_config['CACHE_REDIS_PASSWORD'],
-    db=redis_config['CACHE_REDIS_DB']
+    db=int(redis_config['CACHE_REDIS_DB']),
+    ssl=True,
+    ssl_cert_reqs=None
 )
+
 app.cache = Cache(app, config=redis_config)
 sess = Session()
 sess.init_app(app)
@@ -68,6 +74,7 @@ db = client[take_config('MONGO', required=True)['database']]
 db.users.create_index('username', unique=True)
 db.songs.create_index('id', unique=True)
 db.scores.create_index('username')
+
 
 
 class HashException(Exception):
