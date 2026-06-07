@@ -29,7 +29,8 @@ class Loader{
 		this.loaderPercentage = document.querySelector("#loader .percentage")
 		this.loaderProgress = document.querySelector("#loader .progress")
 		
-		this.queryString = gameConfig._version.commit_short ? "?" + gameConfig._version.commit_short : ""
+		// 修正箇所: _version -> version
+		this.queryString = gameConfig.version.commit_short ? "?" + gameConfig.version.commit_short : ""
 		
 		if(gameConfig.custom_js){
 			this.addPromise(this.loadScript(gameConfig.custom_js), gameConfig.custom_js)
@@ -48,12 +49,13 @@ class Loader{
 			pageVersion = pageVersion.slice(index + 1)
 		}
 		this.addPromise(new Promise((resolve, reject) => {
+			// 修正箇所: _version -> version
 			if(
-				versionLink.href !== gameConfig._version.url &&
-				gameConfig._version.commit &&
-				versionLink.href.indexOf(gameConfig._version.commit) === -1
+				versionLink.href !== gameConfig.version.url &&
+				gameConfig.version.commit &&
+				versionLink.href.indexOf(gameConfig.version.commit) === -1
 			){
-				reject("Version on the page and config does not match\n(page:  " + pageVersion + ",\nconfig: "+ gameConfig._version.commit + ")")
+				reject("Version on the page and config does not match\n(page:  " + pageVersion + ",\nconfig: "+ gameConfig.version.commit + ")")
 			}
 			var cssCount = document.styleSheets.length + assets.css.length
 			assets.css.forEach(name => {
@@ -134,7 +136,7 @@ class Loader{
 			assets.categories = JSON.parse(cats)
 			assets.categories.forEach(cat => {
 				if(cat.song_skin){
-					cat.songSkin = cat.song_skin //rename the song_skin property and add category title to categories array
+					cat.songSkin = cat.song_skin 
 					delete cat.song_skin
 					cat.songSkin.infoFill = cat.songSkin.info_fill
 					delete cat.songSkin.info_fill
@@ -206,7 +208,7 @@ class Loader{
 			}), "api/songs")
 			
 			var categoryPromises = []
-			assets.categories //load category backgrounds to DOM
+			assets.categories 
 				.filter(cat => cat.songSkin && cat.songSkin.bg_img)
 				.forEach(cat => {
 					let name = cat.songSkin.bg_img
@@ -270,7 +272,6 @@ class Loader{
 			this.addPromise(this.canvasTest.blurPerformance().then(result => {
 				perf.blur = result
 				if(result > 1000 / 50){
-					// Less than 50 fps with blur enabled
 					disableBlur = true
 				}
 			}), "blurPerformance")
@@ -507,82 +508,14 @@ class Loader{
 			this.clean(true)
 		}
 		var percentage = Math.floor(this.loadedAssets * 100 / (this.promises.length + this.afterJSCount))
-		this.errorTxt.element[this.errorTxt.method] = "```\n" + this.errorMessages.join("\n") + "\nPercentage: " + percentage + "%\n```"
-		if(rethrow || error){
-			console.error(rethrow || error)
-		}
-		return Promise.reject()
-	}
-	assetLoaded(){
-		if(!this.error){
-			this.loadedAssets++
-			var percentage = Math.floor(this.loadedAssets * 100 / (this.promises.length + this.afterJSCount))
-			this.loaderProgress.style.width = percentage + "%"
-			this.loaderPercentage.firstChild.data = percentage + "%"
-		}
-	}
-	changePage(name, patternBg){
-		this.screen.innerHTML = assets.pages[name]
-		this.screen.classList[patternBg ? "add" : "remove"]("pattern-bg")
-	}
-	cssRuleset(rulesets){
-		var css = []
-		for(var selector in rulesets){
-			var declarationsObj = rulesets[selector]
-			var declarations = []
-			for(var property in declarationsObj){
-				var value = declarationsObj[property]
-				declarations.push("\t" + property + ": " + value + ";")
-			}
-			css.push(selector + "{\n" + declarations.join("\n") + "\n}")
-		}
-		return css.join("\n")
-	}
-	ajax(url, customRequest, customResponse){
-		var request = new XMLHttpRequest()
-		request.open("GET", url)
-		var promise = pageEvents.load(request)
-		if(!customResponse){
-			promise = promise.then(() => {
-				if(request.status === 200){
-					return request.response
-				}else{
-					return Promise.reject(`${url} (${request.status})`)
-				}
-			})
-		}
-		if(customRequest){
-			customRequest(request)
-		}
-		request.send()
-		return promise
-	}
-	loadScript(url){
-		var script = document.createElement("script")
-		var url = url + this.queryString
-		var promise = pageEvents.load(script)
-		script.src = url
-		document.head.appendChild(script)
-		return promise
-	}
-	getCsrfToken(){
-		return this.ajax("api/csrftoken").then(response => {
-			var json = JSON.parse(response)
-			if(json.status === "ok"){
-				return Promise.resolve(json.token)
-			}else{
-				return Promise.reject()
-			}
-		})
-	}
-	clean(error){
-		delete this.loaderDiv
-		delete this.loaderPercentage
-		delete this.loaderProgress
-		if(!error){
-			delete this.promises
-			delete this.errorText
-		}
-		pageEvents.remove(root, "touchstart")
-	}
-}
+		this.errorTxt.element[this.errorTxt.method] = "
+http://googleusercontent.com/immersive_entry_chip/0
+
+### 実行手順
+1.  修正した `loader.js` を保存する。
+2.  `git add public/src/js/loader.js`
+3.  `git commit -m "fix: update version reference to match api/config"`
+4.  `git push`
+5.  Render のデプロイ完了後、**ブラウザのキャッシュをクリアして再読み込み**してください。
+
+これでゲームの読み込みが正常に進むはずです。もし別のエラーが出た場合は、そのメッセージを教えてください。
