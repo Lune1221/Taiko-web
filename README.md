@@ -3,3 +3,5 @@
 この太鼓ウェブはTaikoApp.ukをそのままRenderに移植したやつです
 
 --  ※現在移植中です
+
+https://taiko-web-zpaa.onrender.com
