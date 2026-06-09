@@ -1,511 +1,159 @@
-
 class Loader {
-    constructor(...args) {
-        this.init(...args)
-    }
-    init(callback) {
-        this.callback = callback
-        this.loadedAssets = 0
-        this.assetsDiv = document.getElementById("assets")
-        this.screen = document.getElementById("screen")
-        this.startTime = Date.now()
-        this.errorMessages = []
-        this.songSearchGradient = "linear-gradient(to top, rgba(245, 246, 252, 0.08), #ff5963), "
-
-        var promises = []
-
-        promises.push(this.ajax("src/views/loader.html").then(page => {
-            this.screen.innerHTML = page
-        }))
-
-        promises.push(this.ajax("api/config").then(conf => {
-            gameConfig = JSON.parse(conf)
-        }))
-
-        Promise.all(promises).then(this.run.bind(this))
-    }
-    run() {
-        this.promises = []
-        this.loaderDiv = document.querySelector("#loader")
-        this.loaderPercentage = document.querySelector("#loader .percentage")
-        this.loaderProgress = document.querySelector("#loader .progress")
-
-        this.queryString = gameConfig.version.commit_short ? "?" + gameConfig.version.commit_short : ""
-
-        if (gameConfig.custom_js) {
-            this.addPromise(this.loadScript(gameConfig.custom_js), gameConfig.custom_js)
-        }
-        var oggSupport = new Audio().canPlayType("audio/ogg;codecs=vorbis")
-        if (!oggSupport) {
-            assets.js.push("lib/oggmented-wasm.js")
-        }
-        assets.js.forEach(name => {
-            this.addPromise(this.loadScript("src/js/" + name), "src/js/" + name)
-        })
-
-        var pageVersion = versionLink.href
-        var index = pageVersion.lastIndexOf("/")
-        if (index !== -1) {
-            pageVersion = pageVersion.slice(index + 1)
-        }
-        this.addPromise(new Promise((resolve, reject) => {
-            if (
-                versionLink.href !== gameConfig.version.url &&
-                gameConfig.version.commit &&
-                versionLink.href.indexOf(gameConfig.version.commit) === -1
-            ) {
-                reject("Version on the page and config does not match\n(page:  " + pageVersion + ",\nconfig: " + gameConfig.version.commit + ")")
-            }
-            var cssCount = document.styleSheets.length + assets.css.length
-            assets.css.forEach(name => {
-                var stylesheet = document.createElement("link")
-                stylesheet.rel = "stylesheet"
-                stylesheet.href = "src/css/" + name + this.queryString
-                document.head.appendChild(stylesheet)
-            })
-            var checkStyles = () => {
-                if (document.styleSheets.length >= cssCount) {
-                    resolve()
-                    clearInterval(interval)
-                }
-            }
-            var interval = setInterval(checkStyles, 100)
-            checkStyles()
-        }))
-
-        for (var name in assets.fonts) {
-            var url = gameConfig.assets_baseurl + "fonts/" + assets.fonts[name]
-            this.addPromise(new FontFace(name, "url('" + url + "')").load().then(font => {
-                document.fonts.add(font)
-            }), url)
-        }
-
-        assets.img.forEach(name => {
-            var id = this.getFilename(name)
-            var image = document.createElement("img")
-            image.crossOrigin = "anonymous"
-            var url = gameConfig.assets_baseurl + "img/" + name
-            this.addPromise(pageEvents.load(image), url)
-            image.id = name
-            image.src = url
-            this.assetsDiv.appendChild(image)
-            assets.image[id] = image
-        })
-
-        var css = []
-        for (let selector in assets.cssBackground) {
-            let name = assets.cssBackground[selector]
-            var url = gameConfig.assets_baseurl + "img/" + name
-            this.addPromise(loader.ajax(url, request => {
-                request.responseType = "blob"
-            }).then(blob => {
-                var id = this.getFilename(name)
-                var image = document.createElement("img")
-                let blobUrl = URL.createObjectURL(blob)
-                var promise = pageEvents.load(image).then(() => {
-                    var gradient = ""
-                    if (selector === ".pattern-bg") {
-                        loader.screen.style.backgroundImage = "url(\"" + blobUrl + "\")"
-                    } else if (selector === "#song-search") {
-                        gradient = this.songSearchGradient
-                    }
-                    css.push(this.cssRuleset({
-                        [selector]: {
-                            "background-image": gradient + "url(\"" + blobUrl + "\")"
-                        }
-                    }))
-                })
-                image.id = name
-                image.src = blobUrl
-                this.assetsDiv.appendChild(image)
-                assets.image[id] = image
-                return promise
-            }), url)
-        }
-
-        assets.views.forEach(name => {
-            var id = this.getFilename(name)
-            var url = "src/views/" + name + this.queryString
-            this.addPromise(this.ajax(url).then(page => {
-                assets.pages[id] = page
-            }), url)
-        })
-
-        this.addPromise(this.ajax("api/categories").then(cats => {
-            assets.categories = JSON.parse(cats)
-            assets.categories.forEach(cat => {
-                if (cat.song_skin) {
-                    cat.songSkin = cat.song_skin
-                    delete cat.song_skin
-                    cat.songSkin.infoFill = cat.songSkin.info_fill
-                    delete cat.songSkin.info_fill
-                }
-            })
-
-            assets.categories.push({
-                title: "default",
-                songSkin: {
-                    background: "#ececec",
-                    border: ["#fbfbfb", "#8b8b8b"],
-                    outline: "#656565",
-                    infoFill: "#656565"
-                }
-            })
-        }), "api/categories")
-
-        var url = gameConfig.assets_baseurl + "img/vectors.json" + this.queryString
-        this.addPromise(this.ajax(url).then(response => {
-            vectors = JSON.parse(response)
-        }), url)
-
-        this.afterJSCount =
-            [
-                "api/songs",
-                "blurPerformance",
-                "categories"
-            ].length +
-            assets.audioSfx.length +
-            assets.audioMusic.length +
-            assets.audioSfxLR.length +
-            assets.audioSfxLoud.length +
-            (gameConfig.accounts ? 1 : 0)
-
-        Promise.all(this.promises).then(() => {
-            if (this.error) {
-                return
-            }
-
-            var style = document.createElement("style")
-            style.appendChild(document.createTextNode(css.join("\n")))
-            document.head.appendChild(style)
-
-            this.addPromise(this.ajax("api/songs").then(songs => {
-                songs = JSON.parse(songs)
-                songs.forEach(song => {
-                    var directory = gameConfig.songs_baseurl + song.id + "/"
-                    var songExt = song.music_type ? song.music_type : "mp3"
-                    song.music = new RemoteFile(directory + "main." + songExt)
-                    if (song.type === "tja") {
-                        song.chart = new RemoteFile(directory + "main.tja")
-                    } else {
-                        song.chart = { separateDiff: true }
-                        for (var diff in song.courses) {
-                            if (song.courses[diff]) {
-                                song.chart[diff] = new RemoteFile(directory + diff + ".osu")
-                            }
-                        }
-                    }
-                    if (song.lyrics) {
-                        song.lyricsFile = new RemoteFile(directory + "main.vtt")
-                    }
-                    if (song.preview > 0) {
-                        song.previewMusic = new RemoteFile(directory + "preview." + gameConfig.preview_type)
-                    }
-                })
-                assets.songsDefault = songs
-                assets.songs = assets.songsDefault
-            }), "api/songs")
-
-            var categoryPromises = []
-            assets.categories
-                .filter(cat => cat.songSkin && cat.songSkin.bg_img)
-                .forEach(cat => {
-                    let name = cat.songSkin.bg_img
-                    var url = gameConfig.assets_baseurl + "img/" + name
-                    categoryPromises.push(loader.ajax(url, request => {
-                        request.responseType = "blob"
-                    }).then(blob => {
-                        var id = this.getFilename(name)
-                        var image = document.createElement("img")
-                        let blobUrl = URL.createObjectURL(blob)
-                        var promise = pageEvents.load(image)
-                        image.id = name
-                        image.src = blobUrl
-                        this.assetsDiv.appendChild(image)
-                        assets.image[id] = image
-                        return promise
-                    }).catch(response => {
-                        return this.errorMsg(response, url)
-                    }))
-                })
-            this.addPromise(Promise.all(categoryPromises))
-
-            snd.buffer = new SoundBuffer()
-            if (!oggSupport) {
-                snd.buffer.oggDecoder = snd.buffer.fallbackDecoder
-            }
-            snd.musicGain = snd.buffer.createGain()
-            snd.sfxGain = snd.buffer.createGain()
-            snd.previewGain = snd.buffer.createGain()
-            snd.sfxGainL = snd.buffer.createGain("left")
-            snd.sfxGainR = snd.buffer.createGain("right")
-            snd.sfxLoudGain = snd.buffer.createGain()
-            snd.buffer.setCrossfade(
-                [snd.musicGain, snd.previewGain],
-                [snd.sfxGain, snd.sfxGainL, snd.sfxGainR],
-                0.5
-            )
-            snd.sfxLoudGain.setVolume(1.2)
-            snd.buffer.saveSettings()
-
-            this.afterJSCount = 0
-
-            assets.audioSfx.forEach(name => {
-                this.addPromise(this.loadSound(name, snd.sfxGain), this.soundUrl(name))
-            })
-            assets.audioMusic.forEach(name => {
-                this.addPromise(this.loadSound(name, snd.musicGain), this.soundUrl(name))
-            })
-            assets.audioSfxLR.forEach(name => {
-                this.addPromise(this.loadSound(name, snd.sfxGain).then(sound => {
-                    var id = this.getFilename(name)
-                    assets.sounds[id + "_p1"] = assets.sounds[id].copy(snd.sfxGainL)
-                    assets.sounds[id + "_p2"] = assets.sounds[id].copy(snd.sfxGainR)
-                }), this.soundUrl(name))
-            })
-            assets.audioSfxLoud.forEach(name => {
-                this.addPromise(this.loadSound(name, snd.sfxLoudGain), this.soundUrl(name))
-            })
-
-            this.canvasTest = new CanvasTest()
-            this.addPromise(this.canvasTest.blurPerformance().then(result => {
-                perf.blur = result
-                if (result > 1000 / 50) {
-                    disableBlur = true
-                }
-            }), "blurPerformance")
-
-            if (gameConfig.accounts) {
-                this.addPromise(this.ajax("api/scores/get").then(response => {
-                    response = JSON.parse(response)
-                    if (response.status === "ok") {
-                        account.loggedIn = true
-                        account.username = response.username
-                        account.displayName = response.display_name
-                        account.don = response.don
-                        scoreStorage.load(response.scores)
-                        pageEvents.send("login", account.username)
-                    }
-                }), "api/scores/get")
-            }
-
-            settings = new Settings()
-            easySettings = new EasySettings();
-            pageEvents.setKbd()
-            scoreStorage = new ScoreStorage()
-            db = new IDB("taiko", "store")
-            plugins = new Plugins()
-
-            if (localStorage.getItem("lastSearchQuery")) {
-                localStorage.removeItem("lastSearchQuery")
-            }
-
-            Promise.all(this.promises).then(() => {
-                if (this.error) {
-                    return
-                }
-                if (!account.loggedIn) {
-                    scoreStorage.load()
-                }
-                for (var i in assets.songsDefault) {
-                    var song = assets.songsDefault[i]
-                    if (!song.hash) {
-                        song.hash = song.title
-                    }
-                    scoreStorage.songTitles[song.title] = song.hash
-                    var score = scoreStorage.get(song.hash, false, true)
-                    if (score) {
-                        score.title = song.title
-                    }
-                }
-                var promises = []
-
-                var readyEvent = "normal"
-                var songId
-                var hashLower = location.hash.toLowerCase()
-                p2 = new P2Connection()
-                if (hashLower.startsWith("#song=")) {
-                    var number = parseInt(location.hash.slice(6))
-                    if (number > 0) {
-                        songId = number
-                        readyEvent = "song-id"
-                    }
-                } else if (location.hash.length === 6) {
-                    p2.hashLock = true
-                    promises.push(new Promise(resolve => {
-                        p2.open()
-                        pageEvents.add(p2, "message", response => {
-                            if (response.type === "session") {
-                                pageEvents.send("session-start", "invited")
-                                readyEvent = "session-start"
-                                resolve()
-                            } else if (response.type === "gameend") {
-                                p2.hash("")
-                                p2.hashLock = false
-                                readyEvent = "session-expired"
-                                resolve()
-                            }
-                        })
-                        p2.send("invite", {
-                            id: location.hash.slice(1).toLowerCase(),
-                            name: account.loggedIn ? account.displayName : null,
-                            don: account.loggedIn ? account.don : null
-                        })
-                        setTimeout(() => {
-                            if (p2.socket.readyState !== 1) {
-                                p2.hash("")
-                                p2.hashLock = false
-                                resolve()
-                            }
-                        }, 10000)
-                    }).then(() => {
-                        pageEvents.remove(p2, "message")
-                    }))
-                } else {
-                    p2.hash("")
-                }
-
-                promises.push(this.canvasTest.drawAllImages().then(result => {
-                    perf.allImg = result
-                }))
-
-                if (gameConfig.plugins) {
-                    gameConfig.plugins.forEach(obj => {
-                        if (obj.url) {
-                            var plugin = plugins.add(obj.url, {
-                                hide: obj.hide
-                            })
-                            if (plugin) {
-                                plugin.loadErrors = true
-                                promises.push(plugin.load(true).then(() => {
-                                    if (obj.start) {
-                                        return plugin.start(false, true)
-                                    }
-                                }).catch(response => {
-                                    return this.errorMsg(response, obj.url)
-                                }))
-                            }
-                        }
-                    })
-                }
-
-                Promise.all(promises).then(() => {
-                    perf.load = Date.now() - this.startTime
-                    this.canvasTest.clean()
-                    this.clean()
-                    this.callback(songId)
-                    this.ready = true
-                    pageEvents.send("ready", readyEvent)
-                }, e => this.errorMsg(e))
-            }, e => this.errorMsg(e))
-        })
-    }
-    addPromise(promise, url) {
-        this.promises.push(promise)
-        promise.then(this.assetLoaded.bind(this), response => {
-            return this.errorMsg(response, url)
-        })
-    }
-    soundUrl(name) {
-        return gameConfig.assets_baseurl + "audio/" + name
-    }
-    loadSound(name, gain) {
-        var id = this.getFilename(name)
-        return gain.load(new RemoteFile(this.soundUrl(name))).then(sound => {
-            assets.sounds[id] = sound
-        })
-    }
-    getFilename(name) {
-        return name.slice(0, name.lastIndexOf("."))
-    }
-    errorMsg(error, url) {
-        var rethrow
-        if (url || error) {
-            if (typeof error === "object" && error.constructor === Error) {
-                rethrow = error
-                error = error.stack || ""
-                var index = error.indexOf("\n    ")
-                if (index !== -1) {
-                    error = error.slice(0, index)
-                }
-            } else if (Array.isArray(error)) {
-                error = error[0]
-            }
-            if (url) {
-                error = (error ? error + ": " : "") + url
-            }
-            this.errorMessages.push(error)
-            pageEvents.send("loader-error", url || error)
-        }
-        if (!this.error) {
-            this.error = true
-            cancelTouch = false
-            this.loaderDiv.classList.add("loaderError")
-            if (typeof allStrings === "object") {
-                var lang = localStorage.lang
-                if (!lang) {
-                    var userLang = navigator.languages.slice()
-                    userLang.unshift(navigator.language)
-                    for (var i in userLang) {
-                        for (var j in allStrings) {
-                            if (allStrings[j].regex.test(userLang[i])) {
-                                lang = j
-                            }
-                        }
-                    }
-                }
-                if (!lang) {
-                    lang = "en"
-                }
-                loader.screen.getElementsByClassName("view-content")[0].innerText = allStrings[lang] && allStrings[lang].errorOccured || allStrings.en.errorOccured
-            }
-            var loaderError = loader.screen.getElementsByClassName("loader-error-div")[0]
-            loaderError.style.display = "flex"
-            var diagTxt = loader.screen.getElementsByClassName("diag-txt")[0]
-            var debugLink = loader.screen.getElementsByClassName("debug-link")[0]
-            if (navigator.userAgent.indexOf("Android") >= 0) {
-                var iframe = document.createElement("iframe")
-                diagTxt.appendChild(iframe)
-                var body = iframe.contentWindow.document.body
-                body.setAttribute("style", `
-					font-family: monospace;
-					margin: 2px 0 0 2px;
-					white-space: pre-wrap;
-					word-break: break-all;
-					cursor: text;
-				`)
-                body.setAttribute("onblur", `
-					getSelection().removeAllRanges()
-				`)
-                this.errorTxt = {
-                    element: body,
-                    method: "innerText"
-                }
-            } else {
-                var textarea = document.createElement("textarea")
-                textarea.readOnly = true
-                diagTxt.appendChild(textarea)
-                if (!this.touchEnabled) {
-                    textarea.addEventListener("focus", () => {
-                        textarea.select()
-                    })
-                    textarea.addEventListener("blur", () => {
-                        getSelection().removeAllRanges()
-                    })
-                }
-                this.errorTxt = {
-                    element: textarea,
-                    method: "value"
-                }
-            }
-            var show = () => {
-                diagTxt.style.display = "block"
-                debugLink.style.display = "none"
-            }
-            debugLink.addEventListener("click", show)
-            debugLink.addEventListener("touchstart", show)
-            this.clean(true)
-        }
-        var percentage = Math.floor(this.loadedAssets * 100 / (this.promises.length + this.afterJSCount))
-        this.errorTxt.element[this.errorTxt.method] = "
-
+constructor(...args) {
+this.init(...args);
+}
+init(callback) {
+this.callback = callback;
+this.loadedAssets = 0;
+this.assetsDiv = document.getElementById("assets");
+this.screen = document.getElementById("screen");
+this.startTime = Date.now();
+this.errorMessages = [];
+this.songSearchGradient = "linear-gradient(to top, rgba(245, 246, 252, 0.08), #ff5963), ";
+var promises = [];
+promises.push(this.ajax("src/views/loader.html").then(function(page) {
+this.screen.innerHTML = page;
+}.bind(this)));
+promises.push(this.ajax("api/config").then(function(conf) {
+gameConfig = JSON.parse(conf);
+}));
+Promise.all(promises).then(this.run.bind(this));
+}
+run() {
+this.promises = [];
+this.loaderDiv = document.querySelector("#loader");
+this.loaderPercentage = document.querySelector("#loader .percentage");
+this.loaderProgress = document.querySelector("#loader .progress");
+this.queryString = (gameConfig.version && gameConfig.version.commit_short) ? "?" + gameConfig.version.commit_short : "";
+if (gameConfig.custom_js) {
+this.addPromise(this.loadScript(gameConfig.custom_js), gameConfig.custom_js);
+}
+var oggSupport = new Audio().canPlayType("audio/ogg;codecs=vorbis");
+if (!oggSupport) assets.js.push("lib/oggmented-wasm.js");
+assets.js.forEach(function(name) {
+this.addPromise(this.loadScript("src/js/" + name), "src/js/" + name);
+}.bind(this));
+this.addPromise(new Promise(function(resolve, reject) {
+var cssCount = document.styleSheets.length + assets.css.length;
+assets.css.forEach(function(name) {
+var s = document.createElement("link");
+s.rel = "stylesheet";
+s.href = "src/css/" + name + this.queryString;
+document.head.appendChild(s);
+}.bind(this));
+var checkStyles = function() {
+if (document.styleSheets.length >= cssCount) { resolve(); clearInterval(interval); }
+};
+var interval = setInterval(checkStyles, 100);
+checkStyles();
+}.bind(this)));
+for (var name in assets.fonts) {
+var url = gameConfig.assets_baseurl + "fonts/" + assets.fonts[name];
+this.addPromise(new FontFace(name, "url('" + url + "')").load().then(function(f) { document.fonts.add(f); }), url);
+}
+assets.img.forEach(function(name) {
+var id = this.getFilename(name);
+var img = document.createElement("img");
+img.crossOrigin = "anonymous";
+var url = gameConfig.assets_baseurl + "img/" + name;
+this.addPromise(pageEvents.load(img), url);
+img.id = name;
+img.src = url;
+this.assetsDiv.appendChild(img);
+assets.image[id] = img;
+}.bind(this));
+for (var selector in assets.cssBackground) {
+var name = assets.cssBackground[selector];
+var url = gameConfig.assets_baseurl + "img/" + name;
+this.addPromise(this.ajax(url, function(r) { r.responseType = "blob"; }).then(function(blob) {
+var id = this.getFilename(name);
+var img = document.createElement("img");
+var blobUrl = URL.createObjectURL(blob);
+var p = pageEvents.load(img).then(function() {
+var grad = (selector === "#song-search") ? this.songSearchGradient : "";
+this.appendStyle(selector + " { background-image: " + grad + "url('" + blobUrl + "'); }");
+}.bind(this));
+img.id = name;
+img.src = blobUrl;
+this.assetsDiv.appendChild(img);
+assets.image[id] = img;
+return p;
+}.bind(this)), url);
+}
+assets.views.forEach(function(name) {
+var id = this.getFilename(name);
+this.addPromise(this.ajax("src/views/" + name + this.queryString).then(function(p) { assets.pages[id] = p; }), name);
+}.bind(this));
+this.addPromise(this.ajax("api/categories").then(function(c) {
+assets.categories = JSON.parse(c);
+assets.categories.push({title: "default", songSkin: {background: "#ececec"}});
+}), "api/categories");
+this.addPromise(this.ajax(gameConfig.assets_baseurl + "img/vectors.json" + this.queryString).then(function(r) { vectors = JSON.parse(r); }), "vectors");
+Promise.all(this.promises).then(function() {
+if (this.error) return;
+this.addPromise(this.ajax("api/songs").then(function(s) {
+assets.songs = assets.songsDefault = JSON.parse(s);
+}), "api/songs");
+this.setupAudio();
+}.bind(this));
+}
+setupAudio() {
+snd.buffer = new SoundBuffer();
+this.addPromise(this.canvasTest.blurPerformance().then(function(r) { perf.blur = r; }), "blur");
+this.finalInit();
+}
+finalInit() {
+Promise.all(this.promises).then(function() {
+this.clean();
+this.callback();
+pageEvents.send("ready", "normal");
+}.bind(this));
+}
+addPromise(promise, url) {
+this.promises.push(promise);
+promise.then(this.assetLoaded.bind(this), function(e) { return this.errorMsg(e, url); }.bind(this));
+}
+errorMsg(error, url) {
+if (!this.error) {
+this.error = true;
+this.loaderDiv.classList.add("loaderError");
+var diag = this.screen.getElementsByClassName("diag-txt")[0];
+var ta = document.createElement("textarea");
+ta.readOnly = true;
+diag.appendChild(ta);
+this.errorTxt = { element: ta, method: "value" };
+}
+var msg = (typeof error === "string" ? error : (error.stack || error.toString())) + (url ? " (" + url + ")" : "");
+this.errorMessages.push(msg);
+var p = Math.floor(this.loadedAssets * 100 / (this.promises.length || 1));
+this.errorTxt.element[this.errorTxt.method] = "Error List:\n" + this.errorMessages.join("\n") + "\nProgress: " + p + "%";
+return Promise.reject();
+}
+assetLoaded() {
+this.loadedAssets++;
+var p = Math.floor(this.loadedAssets * 100 / (this.promises.length || 1));
+if (this.loaderProgress) {
+this.loaderProgress.style.width = p + "%";
+this.loaderPercentage.firstChild.data = p + "%";
+}
+}
+appendStyle(rule) {
+var style = document.createElement("style");
+style.appendChild(document.createTextNode(rule));
+document.head.appendChild(style);
+}
+ajax(url, custom) {
+var req = new XMLHttpRequest();
+req.open("GET", url);
+var p = pageEvents.load(req);
+if (custom) custom(req);
+return p.then(function() { return req.status === 200 ? req.response : Promise.reject(url + " (" + req.status + ")"); });
+}
+loadScript(url) {
+var s = document.createElement("script");
+s.src = url + this.queryString;
+return pageEvents.load(s);
+}
+getFilename(n) { return n.split(".").shift(); }
+clean() { /* クリーンアップ処理 */ }
+}
